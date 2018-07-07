@@ -17,7 +17,7 @@ lulesh.cc - where most (all?) of the timed functionality lies
 lulesh-comm.cc - MPI functionality
 lulesh-init.cc - Setup code
 lulesh-viz.cc  - Support for visualization option
-lulesh-util.cc - Non-timed functions
+lulesh-util.cc - Non-timed and checkpoint functions
 
 The concept of "regions" was added, although every region is the same ideal gas material, and the same sedov blast wave problem is still the only problem its hardcoded to solve. Regions allow two things important to making this proxy app more representative:
 
@@ -51,3 +51,24 @@ TODO in future versions
 * Add reader for (truly) unstructured meshes, probably serial only
 * CMake based build system
 
+=====================================================
+BUILD and RUN LULESH with Checkpoint/Restart support
+$ vi Makefile
+Turn USE_CP flag to 1.
+
+$ make
+
+Define the frequency of checkpoint write using command line arg (-cp <x>). A application state checkpoint will be
+taken after each x iterations. 
+
+$ mpirun -np <x> ./lulesh2.0 -cp <x> ... 
+
+To restart the application from a previous checkpoint
+$ vi Makefile
+Turn RESTART flag to 1.
+
+$ make
+
+$ mpirun -np <x> ./lulesh2.0 ...
+
+Restart will load the second to last checkpoint and start execution from that iteration.

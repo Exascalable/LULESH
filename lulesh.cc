@@ -152,7 +152,7 @@ Additional BSD Notice
 #include <string.h>
 #include <ctype.h>
 #include <time.h>
-#include <sys/time.h>
+
 #include <iostream>
 #include <unistd.h>
 
@@ -2692,6 +2692,11 @@ int main(int argc, char *argv[])
    Int_t numRanks ;
    Int_t myRank ;
    struct cmdLineOpts opts;
+#if USE_MPI
+   double start;
+#else
+   timeval start;
+#endif
 
 #if USE_MPI   
    Domain_member fieldData ;
@@ -2715,69 +2720,78 @@ int main(int argc, char *argv[])
 #else
    numRanks = 1;
    myRank = 0;
-#endif   
-
-   /* Set defaults that can be overridden by command line opts */
-   opts.its = 9999999;
-   opts.nx  = 30;
-   opts.numReg = 11;
-   opts.numFiles = (int)(numRanks+10)/9;
-   opts.showProg = 0;
-   opts.quiet = 0;
-   opts.viz = 0;
-   opts.balance = 1;
-   opts.cost = 1;
-
-   ParseCommandLineOptions(argc, argv, myRank, &opts);
-
-   if ((myRank == 0) && (opts.quiet == 0)) {
-      printf("Running problem size %d^3 per domain until completion\n", opts.nx);
-      printf("Num processors: %d\n", numRanks);
-#if _OPENMP
-      printf("Num threads: %d\n", omp_get_max_threads());
 #endif
-      printf("Total number of elements: %lld\n\n", (long long int)(numRanks*opts.nx*opts.nx*opts.nx));
-      printf("To run other sizes, use -s <integer>.\n");
-      printf("To run a fixed number of iterations, use -i <integer>.\n");
-      printf("To run a more or less balanced region set, use -b <integer>.\n");
-      printf("To change the relative costs of regions, use -c <integer>.\n");
-      printf("To print out progress, use -p\n");
-      printf("To write an output file for VisIt, use -v\n");
-      printf("See help (-h) for more options\n\n");
-   }
-
-   // Set up the mesh and decompose. Assumes regular cubes for now
-   Int_t col, row, plane, side;
-   InitMeshDecomp(numRanks, myRank, &col, &row, &plane, &side);
-
-   // Build the main data structure and initialize it
-   locDom = new Domain(numRanks, col, row, plane, opts.nx,
-                       side, opts.numReg, opts.balance, opts.cost) ;
-
-
-#if USE_MPI   
-   fieldData = &Domain::nodalMass ;
-
-   // Initial domain boundary communication 
-   CommRecv(*locDom, MSG_COMM_SBN, 1,
-            locDom->sizeX() + 1, locDom->sizeY() + 1, locDom->sizeZ() + 1,
-            true, false) ;
-   CommSend(*locDom, MSG_COMM_SBN, 1, &fieldData,
-            locDom->sizeX() + 1, locDom->sizeY() + 1, locDom->sizeZ() +  1,
-            true, false) ;
-   CommSBN(*locDom, 1, &fieldData) ;
-
-   // End initialization
-   MPI_Barrier(MPI_COMM_WORLD);
-#endif   
-   
-   // BEGIN timestep to solution */
-#if USE_MPI   
-   double start = MPI_Wtime();
+   /* Restart MPI application form a checkpoint */
+#ifdef RESTART
+#if USE_MPI
+   locDom = new Domain();
+   ApplicationCheckpointRead(myRank, *locDom, opts, start);
+#endif
 #else
-   timeval start;
-   gettimeofday(&start, NULL) ;
+   /* Set defaults that can be overridden by command line opts */
+      opts.its = 9999999;
+      opts.nx  = 30;
+      opts.numReg = 11;
+      opts.numFiles = (int)(numRanks+10)/9;
+      opts.showProg = 0;
+      opts.quiet = 0;
+      opts.viz = 0;
+      opts.balance = 1;
+      opts.cost = 1;
+      opts.cpInterval = 0;
+
+      ParseCommandLineOptions(argc, argv, myRank, &opts);
+
+      if ((myRank == 0) && (opts.quiet == 0)) {
+         printf("Running problem size %d^3 per domain until completion\n", opts.nx);
+         printf("Num processors: %d\n", numRanks);
+   #if _OPENMP
+         printf("Num threads: %d\n", omp_get_max_threads());
+   #endif
+         printf("Total number of elements: %lld\n\n", (long long int)(numRanks*opts.nx*opts.nx*opts.nx));
+         printf("To run other sizes, use -s <integer>.\n");
+         printf("To run a fixed number of iterations, use -i <integer>.\n");
+         printf("To run a more or less balanced region set, use -b <integer>.\n");
+         printf("To change the relative costs of regions, use -c <integer>.\n");
+         printf("To print out progress, use -p\n");
+         printf("To write an output file for VisIt, use -v\n");
+         printf("See help (-h) for more options\n\n");
+      }
+
+      // Set up the mesh and decompose. Assumes regular cubes for now
+      Int_t col, row, plane, side;
+      InitMeshDecomp(numRanks, myRank, &col, &row, &plane, &side);
+
+      // Build the main data structure and initialize it
+      locDom = new Domain(numRanks, col, row, plane, opts.nx,
+                          side, opts.numReg, opts.balance, opts.cost) ;
+
+
+   #if USE_MPI
+      fieldData = &Domain::nodalMass ;
+
+      // Initial domain boundary communication
+      CommRecv(*locDom, MSG_COMM_SBN, 1,
+               locDom->sizeX() + 1, locDom->sizeY() + 1, locDom->sizeZ() + 1,
+               true, false) ;
+      CommSend(*locDom, MSG_COMM_SBN, 1, &fieldData,
+               locDom->sizeX() + 1, locDom->sizeY() + 1, locDom->sizeZ() +  1,
+               true, false) ;
+      CommSBN(*locDom, 1, &fieldData) ;
+
+      // End initialization
+      MPI_Barrier(MPI_COMM_WORLD);
+   #endif
+
+      // BEGIN timestep to solution */
+   #if USE_MPI
+      start = MPI_Wtime();
+   #else
+      //timeval start;
+      gettimeofday(&start, NULL) ;
+   #endif
 #endif
+   int count = opts.cpInterval + locDom->cycle();
 //debug to see region sizes
 //   for(Int_t i = 0; i < locDom->numReg(); i++)
 //      std::cout << "region" << i + 1<< "size" << locDom->regElemSize(i) <<std::endl;
@@ -2790,6 +2804,18 @@ int main(int argc, char *argv[])
          printf("cycle = %d, time = %e, dt=%e\n",
                 locDom->cycle(), double(locDom->time()), double(locDom->deltatime()) ) ;
       }
+#if USE_MPI
+      MPI_Barrier(MPI_COMM_WORLD);
+#endif
+/* Checkpoint the state of the application */
+#ifdef USE_CP
+#if USE_MPI
+      if (locDom->cycle() == count) {
+    	  ApplicationCheckpointWrite(myRank, *locDom, opts, start);
+    	  count += opts.cpInterval;
+      }
+#endif
+#endif
    }
 
    // Use reduced max elapsed time

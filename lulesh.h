@@ -23,6 +23,7 @@
 
 #include <math.h>
 #include <vector>
+#include <sys/time.h>
 
 //**************************************************
 // Allow flexibility for arithmetic representations 
@@ -129,6 +130,7 @@ class Domain {
    public:
 
    // Constructor
+   Domain();
    Domain(Int_t numRanks, Index_t colLoc,
           Index_t rowLoc, Index_t planeLoc,
           Index_t nx, Int_t tp, Int_t nr, Int_t balance, Int_t cost);
@@ -408,9 +410,21 @@ class Domain {
    Real_t *commDataSend ;
    Real_t *commDataRecv ;
    
+   int commBufSize;
    // Maximum number of block neighbors 
    MPI_Request recvRequest[26] ; // 6 faces + 12 edges + 8 corners 
    MPI_Request sendRequest[26] ; // 6 faces + 12 edges + 8 corners 
+
+   //
+   // Functions to write and read application checkpoint
+   // Implementation --> lulesh-util.cc
+   //
+
+   /* Read the second to last checkpoint file */
+   friend void ApplicationCheckpointRead(int rank, Domain& domain, struct cmdLineOpts &opts, double &start);
+
+   /* Take checkpoint after each checkpoint interval defined by -cp in command line */
+   friend void ApplicationCheckpointWrite(int rank, Domain& domain, struct cmdLineOpts &opts, double start);
 #endif
 
   private:
@@ -577,6 +591,7 @@ struct cmdLineOpts {
    Int_t viz; // -v 
    Int_t cost; // -c
    Int_t balance; // -b
+   Int_t cpInterval; // -cp
 };
 
 

@@ -13,6 +13,28 @@
 #include "lulesh.h"
 
 /////////////////////////////////////////////////////////////////////
+Domain::Domain() :
+   m_e_cut(Real_t(1.0e-7)),
+   m_p_cut(Real_t(1.0e-7)),
+   m_q_cut(Real_t(1.0e-7)),
+   m_v_cut(Real_t(1.0e-10)),
+   m_u_cut(Real_t(1.0e-7)),
+   m_hgcoef(Real_t(3.0)),
+   m_ss4o3(Real_t(4.0)/Real_t(3.0)),
+   m_qstop(Real_t(1.0e+12)),
+   m_monoq_max_slope(Real_t(1.0)),
+   m_monoq_limiter_mult(Real_t(2.0)),
+   m_qlc_monoq(Real_t(0.5)),
+   m_qqc_monoq(Real_t(2.0)/Real_t(3.0)),
+   m_qqc(Real_t(2.0)),
+   m_eosvmax(Real_t(1.0e+9)),
+   m_eosvmin(Real_t(1.0e-9)),
+   m_pmin(Real_t(0.)),
+   m_emin(Real_t(-1.0e+15)),
+   m_dvovmax(Real_t(0.1)),
+   m_refdens(Real_t(1.0))
+{}
+
 Domain::Domain(Int_t numRanks, Index_t colLoc,
                Index_t rowLoc, Index_t planeLoc,
                Index_t nx, int tp, int nr, int balance, Int_t cost)
@@ -355,6 +377,7 @@ Domain::SetupCommBuffers(Int_t edgeNodes)
 		 (m_rowMax & m_colMax & m_planeMin) +
 		 (m_rowMax & m_colMax & m_planeMax)) * CACHE_COHERENCE_PAD_REAL ;
 
+  this->commBufSize = comBufSize;
   this->commDataSend = new Real_t[comBufSize] ;
   this->commDataRecv = new Real_t[comBufSize] ;
   // prevent floating point exceptions 
